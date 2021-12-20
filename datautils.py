@@ -3,6 +3,40 @@ import torch
 import os
 import json
 
+def reltypes2id_10K():
+    pathtoTypes = os.path.join(os.sep, os.path.dirname(__file__), 'data', '10K', '10K_types.json')
+    with open(pathtoTypes, "r") as file:
+        data = json.load(file)
+    rel2id  = [{}]
+    for idx,(relk,relv) in enumerate(data['relations'].items()):
+        rel2id[0][relk] = idx
+    pathtoRel2id = os.path.join(os.sep, os.path.dirname(__file__), 'data4PRGC', '10K', 'rel2id.json')
+    with open(pathtoRel2id, "w") as file:
+        json.dump(rel2id,file)
+
+def ChangeDataFormat():
+    file_names = {'10K_train.json':'train_triples.json','10K_dev.json':'val_triples.json','10K_test.json':'test_triples.json'}
+    pathto10K = os.path.join(os.sep, os.path.dirname(__file__), 'data', '10K')
+    pathtoPRGC = os.path.join(os.sep, os.path.dirname(__file__), 'data4PRGC', '10K')
+    for (orig_file,new_file) in file_names.items():
+        pathtoOrig = os.path.join(os.sep,pathto10K,orig_file)
+        pathtoNew = os.path.join(os.sep,pathtoPRGC,new_file)
+        with open(pathtoOrig, "r") as file:
+            dataorig = json.load(file)
+        datanew = [{} for i in range(len(dataorig))]
+        for idx,example in enumerate(dataorig):
+            tokens = example['tokens']
+            entities = example['entities']
+            datanew[idx]['text'] = ' '.join(tokens)
+            datanew[idx]['triple_list'] = []
+            for rel in example['relations']:
+                rel_type = rel['type']
+                head_ent = ' '.join(tokens[entities[rel['head']]['start']:entities[rel['head']]['end']])
+                tail_ent = ' '.join(tokens[entities[rel['tail']]['start']:entities[rel['tail']]['end']])
+                datanew[idx]['triple_list'].append([head_ent,rel_type,tail_ent])
+        with open(pathtoNew, "w") as file:
+            json.dump(datanew,file)
+
 def ReadData(Dataset, type):
     type = type + '.json' if type == 'rel2id' else type + '_triples.json'
     pathtoData = os.path.join(os.sep, os.path.dirname(__file__), 'data4PRGC', Dataset)
@@ -113,7 +147,7 @@ class TrainDataset(Dataset):
             text,
             add_special_tokens=False,
             padding=True,
-            max_length=100,
+            max_length=max_plm_seq_len,
             truncation=True,
             return_token_type_ids=False,
             return_attention_mask=True,
@@ -160,3 +194,8 @@ class ValDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.labels[idx]['input_ids'], self.labels[idx]['attention_mask'], self.labels[idx]['triples']
+
+
+if __name__ == "__main__":
+    reltypes2id_10K()
+    ChangeDataFormat()

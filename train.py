@@ -109,7 +109,7 @@ def evaluate_epoch(model, iterator, device):
 
 def get_arguments():
     parser = argparse.ArgumentParser(description="PRGC Model")
-    parser.add_argument("-dataset", type=str, default='WebNLG', help="Dataset Choice out of {'NYT','NYT-star','WebNLG','WebNLG-star'}")
+    parser.add_argument("-dataset", type=str, default='10K', help="Dataset Choice out of {'NYT','WebNLG','10K'}")
     parser.add_argument("-checkpoint", type=str, default='bert-base-uncased', help="chepoint for a pre-trained language model, from https://huggingface.co/models")
     parser.add_argument("-nepochs", type=int, default='100', help="number of training epochs")
     parser.add_argument("-batchsize", type=int, default='6', help="size of each batch")
@@ -123,16 +123,21 @@ def get_arguments():
 
 if __name__ == "__main__":
 
-    rel_num = 216
-
     args = get_arguments()
-
+        
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpuid
 
     torch.manual_seed(args.seed)
     
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Read data from file
+    train_text, train_labels = ReadData(args.dataset, 'train')
+    val_text, val_labels = ReadData(args.dataset, 'val')
+    rel2id = ReadData(args.dataset, 'rel2id')
+    rel_num = len(rel2id)
+
 
     bert_tokenizer = BertTokenizer(vocab_file=os.path.join(os.path.dirname(__file__), 'pretrained_model', 'vocab.txt'),
                                   do_lower_case=False)
@@ -142,12 +147,6 @@ if __name__ == "__main__":
     bert_config = BertConfig.from_json_file(json_file=os.path.join(os.path.dirname(__file__), 'pretrained_model', 'config.json'))
     sim_params = {'rel_num':rel_num,'lambda_1': args.lambda1, 'lambda_2':args.lambda2,'fusion_type':args.fusion}
     model = PRGC.from_pretrained(config=bert_config,pretrained_model_name_or_path='pretrained_model',params=sim_params).to(device)
-
-
-    # Read data from file
-    train_text, train_labels = ReadData(args.dataset, 'train')
-    val_text, val_labels = ReadData(args.dataset, 'val')
-    rel2id = ReadData(args.dataset, 'rel2id')
 
     train_dataset = TrainDataset(train_text, train_labels, rel2id, bert_tokenizer, max_plm_seq_len)
     traindatasampler = RandomSampler(train_dataset)
